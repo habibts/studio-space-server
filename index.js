@@ -277,19 +277,42 @@ app.get("/my-bookings", async (req, res) => {
       });
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
     const bookingsCollection = db.collection("bookings");
+    const studiosCollection = db.collection("studios");
 
     const bookings = await bookingsCollection
       .find({
-        customerEmail: email.trim().toLowerCase(),
+        customerEmail: normalizedEmail,
       })
       .sort({ createdAt: -1 })
       .toArray();
 
+    // Enrich each booking with the associated studio's imageUrl and location.
+    const enrichedBookings = await Promise.all(
+      bookings.map(async (booking) => {
+        let studio = null;
+
+        if (booking.studioId) {
+          const query = ObjectId.isValid(booking.studioId)
+            ? { _id: new ObjectId(booking.studioId) }
+            : { _id: booking.studioId };
+
+          studio = await studiosCollection.findOne(query);
+        }
+
+        return {
+          ...booking,
+          imageUrl: studio?.imageUrl ?? null,
+          location: studio?.location ?? null,
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      totalBookings: bookings.length,
-      bookings,
+      totalBookings: enrichedBookings.length,
+      bookings: enrichedBookings,
     });
   } catch (error) {
     console.error("Error fetching user bookings:", error);
@@ -298,6 +321,89 @@ app.get("/my-bookings", async (req, res) => {
       success: false,
       message: "Failed to fetch user bookings",
     });
+  }
+});
+
+// ========================================
+// Get My Studios
+// ========================================
+
+app.get("/my-studios", async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "User email is required",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const studiosCollection = db.collection("studios");
+
+    const studios = await studiosCollection
+      .find({
+        hostEmail: { $regex: `^${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      studios,
+    });
+  } catch (error) {
+    console.error("Error fetching user studios:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch user studios",
+    });
+  }
+});
+
+// ========================================
+// Update Studio
+// ========================================
+
+app.put("/studios/:id", async (req, res) => {
+  try {
+    const { ObjectId } = await import("mongodb");
+    const collection = db.collection("studios");
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid studio ID" });
+    }
+
+    const update = {
+      $set: {
+        title: req.body.title,
+        category: req.body.category,
+        hourlyRate: Number(req.body.hourlyRate),
+        securityDeposit: Number(req.body.securityDeposit),
+        maxCapacity: Number(req.body.maxCapacity),
+        location: req.body.location,
+        imageUrl: req.body.imageUrl,
+        description: req.body.description,
+        amenities: req.body.amenities || [],
+        hostName: req.body.hostName,
+        hostEmail: req.body.hostEmail,
+        updatedAt: new Date(),
+      },
+    };
+
+    const result = await collection.updateOne({ _id: new ObjectId(id) }, update);
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ success: false, message: "Studio not found" });
+    }
+
+    res.status(200).json({ success: true, message: "Studio updated successfully" });
+  } catch (err) {
+    console.error("Error updating studio:", err);
+    res.status(500).json({ success: false, message: "Error updating studio" });
   }
 });
 
