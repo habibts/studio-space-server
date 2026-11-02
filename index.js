@@ -69,6 +69,28 @@ app.post("/add-studio", async (req, res) => {
   }
 });
 
+app.get("/studios", async (req, res) => {
+  try {
+    const db = mongoClient.db("studiospace");
+    const collection = db.collection("studios");
+
+    const studios = await collection.find({}).toArray();
+
+    res.status(200).json({
+      success: true,
+      studios: studios,
+    });
+
+  } catch (err) {
+    console.error("Error fetching studios:", err);
+
+    res.status(500).json({
+      success: false,
+      message: "Error fetching studios",
+    });
+  }
+});
+
 app.get("/", (req, res) => {
   res.send("Hello, World!");
 });
