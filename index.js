@@ -232,7 +232,30 @@ app.post("/bookings", async (req, res) => {
   }
 });
 
+// Get All Bookings
+app.get("/bookings", async (req, res) => {
+  try {
+    const bookingsCollection = db.collection("bookings");
 
+    const bookings = await bookingsCollection
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      totalBookings: bookings.length,
+      bookings,
+    });
+  } catch (error) {
+    console.error("Error fetching bookings:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch bookings",
+    });
+  }
+});
 
 
 app.get("/", (req, res) => {
