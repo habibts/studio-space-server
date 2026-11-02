@@ -1,5 +1,5 @@
 import express from "express";
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from "mongodb";
 import 'dotenv/config';
 import cors from 'cors';
 
@@ -90,6 +90,150 @@ app.get("/studios", async (req, res) => {
     });
   }
 });
+
+app.get("/featured-studios", async (req, res) => {
+  try {
+    const db = mongoClient.db("studiospace");
+    const collection = db.collection("studios");
+
+    const studios = await collection
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(6)
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      studios,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch featured studios",
+    });
+  }
+});
+
+// Get Single Studio Details
+app.get("/studios/:id", async (req, res) => {
+  try {
+    const db = mongoClient.db("studiospace");
+    const collection = db.collection("studios");
+
+    const { id } = req.params;
+
+    // Check valid MongoDB ID
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid studio ID",
+      });
+    }
+
+    // Find studio by ID
+    const studio = await collection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    // Studio not found
+    if (!studio) {
+      return res.status(404).json({
+        success: false,
+        message: "Studio not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      studio,
+    });
+  } catch (error) {
+    console.error("Error fetching studio details:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch studio details",
+    });
+  }
+});
+
+// Create a New Booking
+app.post("/bookings", async (req, res) => {
+  try {
+    const {
+      studioId,
+      studioTitle,
+      customerName,
+      customerEmail,
+      bookingDate,
+      startTime,
+      endTime,
+      totalHours,
+      hourlyRate,
+      securityDeposit,
+      totalPrice,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !studioId ||
+      !studioTitle ||
+      !customerName ||
+      !customerEmail ||
+      !bookingDate ||
+      !startTime ||
+      !endTime ||
+      !totalHours ||
+      !hourlyRate ||
+      securityDeposit === undefined ||
+      totalPrice === undefined
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "All booking fields are required",
+      });
+    }
+
+    // Create booking object
+    const newBooking = {
+      studioId,
+      studioTitle,
+      customerName,
+      customerEmail,
+      bookingDate,
+      startTime,
+      endTime,
+      totalHours: Number(totalHours),
+      hourlyRate: Number(hourlyRate),
+      securityDeposit: Number(securityDeposit),
+      totalPrice: Number(totalPrice),
+      status: "Pending",
+      createdAt: new Date(),
+    };
+
+    // Get bookings collection
+    const bookingsCollection = db.collection("bookings");
+
+    // Save booking to MongoDB
+    const result = await bookingsCollection.insertOne(newBooking);
+
+    res.status(201).json({
+      success: true,
+      message: "Booking created successfully!",
+      bookingId: result.insertedId,
+    });
+  } catch (error) {
+    console.error("Error creating booking:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to create booking",
+    });
+  }
+});
+
+
+
 
 app.get("/", (req, res) => {
   res.send("Hello, World!");
