@@ -1,12 +1,10 @@
 import express from "express";
 import { MongoClient, ObjectId } from "mongodb";
-import 'dotenv/config';
-import cors from 'cors';
+import "dotenv/config";
+import cors from "cors";
 
 const app = express();
-
 const PORT = 3001;
-
 
 app.use(cors());
 app.use(express.json());
@@ -19,19 +17,22 @@ export async function connectToMongoDB() {
     console.log("You successfully connected to MongoDB!");
     return client;
   } catch (err) {
-    console.dir(err);
+    console.error("MongoDB connection failed:", err);
+    throw err;
   }
 }
 
- const mongoClient = await connectToMongoDB();
- const db = mongoClient.db("studiospace");
+const mongoClient = await connectToMongoDB();
+const db = mongoClient.db("studiospace");
+
+// ========================================
+// Add New Studio
+// ========================================
 
 app.post("/add-studio", async (req, res) => {
-
   console.log("Received data:", req.body);
 
   try {
-    const db = mongoClient.db("studiospace");
     const collection = db.collection("studios");
 
     const newStudio = {
@@ -58,7 +59,6 @@ app.post("/add-studio", async (req, res) => {
       message: "Studio added successfully!",
       studioId: result.insertedId,
     });
-
   } catch (err) {
     console.error("Error adding studio:", err);
 
@@ -69,18 +69,19 @@ app.post("/add-studio", async (req, res) => {
   }
 });
 
+// ========================================
+// Get All Studios
+// ========================================
+
 app.get("/studios", async (req, res) => {
   try {
-    const db = mongoClient.db("studiospace");
     const collection = db.collection("studios");
-
     const studios = await collection.find({}).toArray();
 
     res.status(200).json({
       success: true,
-      studios: studios,
+      studios,
     });
-
   } catch (err) {
     console.error("Error fetching studios:", err);
 
@@ -91,9 +92,12 @@ app.get("/studios", async (req, res) => {
   }
 });
 
+// ========================================
+// Get Featured Studios
+// ========================================
+
 app.get("/featured-studios", async (req, res) => {
   try {
-    const db = mongoClient.db("studiospace");
     const collection = db.collection("studios");
 
     const studios = await collection
@@ -107,6 +111,8 @@ app.get("/featured-studios", async (req, res) => {
       studios,
     });
   } catch (error) {
+    console.error("Error fetching featured studios:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch featured studios",
@@ -114,15 +120,14 @@ app.get("/featured-studios", async (req, res) => {
   }
 });
 
+// ========================================
 // Get Single Studio Details
+// ========================================
+
 app.get("/studios/:id", async (req, res) => {
   try {
-    const db = mongoClient.db("studiospace");
-    const collection = db.collection("studios");
-
     const { id } = req.params;
 
-    // Check valid MongoDB ID
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -130,12 +135,10 @@ app.get("/studios/:id", async (req, res) => {
       });
     }
 
-    // Find studio by ID
-    const studio = await collection.findOne({
+    const studio = await db.collection("studios").findOne({
       _id: new ObjectId(id),
     });
 
-    // Studio not found
     if (!studio) {
       return res.status(404).json({
         success: false,
@@ -157,7 +160,10 @@ app.get("/studios/:id", async (req, res) => {
   }
 });
 
-// Create a New Booking
+// ========================================
+// Create New Booking
+// ========================================
+
 app.post("/bookings", async (req, res) => {
   try {
     const {
@@ -174,7 +180,6 @@ app.post("/bookings", async (req, res) => {
       totalPrice,
     } = req.body;
 
-    // Validate required fields
     if (
       !studioId ||
       !studioTitle ||
@@ -194,12 +199,11 @@ app.post("/bookings", async (req, res) => {
       });
     }
 
-    // Create booking object
     const newBooking = {
       studioId,
       studioTitle,
       customerName,
-      customerEmail,
+      customerEmail: customerEmail.trim().toLowerCase(),
       bookingDate,
       startTime,
       endTime,
@@ -211,10 +215,8 @@ app.post("/bookings", async (req, res) => {
       createdAt: new Date(),
     };
 
-    // Get bookings collection
     const bookingsCollection = db.collection("bookings");
 
-    // Save booking to MongoDB
     const result = await bookingsCollection.insertOne(newBooking);
 
     res.status(201).json({
@@ -232,7 +234,10 @@ app.post("/bookings", async (req, res) => {
   }
 });
 
+// ========================================
 // Get All Bookings
+// ========================================
+
 app.get("/bookings", async (req, res) => {
   try {
     const bookingsCollection = db.collection("bookings");
@@ -257,10 +262,56 @@ app.get("/bookings", async (req, res) => {
   }
 });
 
+// ========================================
+// Get Bookings by User Email
+// ========================================
+
+app.get("/my-bookings", async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "User email is required",
+      });
+    }
+
+    const bookingsCollection = db.collection("bookings");
+
+    const bookings = await bookingsCollection
+      .find({
+        customerEmail: email.trim().toLowerCase(),
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      totalBookings: bookings.length,
+      bookings,
+    });
+  } catch (error) {
+    console.error("Error fetching user bookings:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch user bookings",
+    });
+  }
+});
+
+// ========================================
+// Home Route
+// ========================================
 
 app.get("/", (req, res) => {
   res.send("Hello, World!");
 });
+
+// ========================================
+// Start Server
+// ========================================
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
