@@ -408,6 +408,33 @@ app.put("/studios/:id", async (req, res) => {
 });
 
 // ========================================
+// Delete Studio
+// ========================================
+
+app.delete("/studios/:id", async (req, res) => {
+  try {
+    const { ObjectId } = await import("mongodb");
+    const collection = db.collection("studios");
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid studio ID" });
+    }
+
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, message: "Studio not found" });
+    }
+
+    res.status(200).json({ success: true, message: "Studio deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting studio:", err);
+    res.status(500).json({ success: false, message: "Error deleting studio" });
+  }
+});
+
+// ========================================
 // Home Route
 // ========================================
 
