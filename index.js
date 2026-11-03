@@ -2,11 +2,12 @@ import express from "express";
 import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
 import cors from "cors";
+import jwt from "jsonwebtoken";
 
 const app = express();
 const PORT = 3001;
 
-app.use(cors());
+app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:3000", credentials: true }));
 app.use(express.json());
 
 const client = new MongoClient(process.env.MONGODB_URI);
@@ -29,7 +30,23 @@ const db = mongoClient.db("studiospace");
 // Add New Studio
 // ========================================
 
-app.post("/add-studio", async (req, res) => {
+function verifyJwt(req, res, next) {
+  const token = req.cookies?.studio_jwt;
+  if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+}
+
+// cookie parser
+import cookieParser from "cookie-parser";
+app.use(cookieParser());
+
+app.post("/add-studio", verifyJwt, async (req, res) => {
   console.log("Received data:", req.body);
 
   try {
@@ -45,8 +62,8 @@ app.post("/add-studio", async (req, res) => {
       imageUrl: req.body.imageUrl,
       description: req.body.description,
       amenities: req.body.amenities || [],
-      hostName: req.body.hostName,
-      hostEmail: req.body.hostEmail,
+      hostName: req.user?.name || req.body.hostName,
+      hostEmail: req.user?.email || req.body.hostEmail,
       createdAt: new Date(),
     };
 
@@ -164,7 +181,7 @@ app.get("/studios/:id", async (req, res) => {
 // Create New Booking
 // ========================================
 
-app.post("/bookings", async (req, res) => {
+app.post("/bookings", verifyJwt, async (req, res) => {
   try {
     const {
       studioId,
@@ -202,8 +219,8 @@ app.post("/bookings", async (req, res) => {
     const newBooking = {
       studioId,
       studioTitle,
-      customerName,
-      customerEmail: customerEmail.trim().toLowerCase(),
+      customerName: req.user?.name || customerName,
+      customerEmail: (req.user?.email || customerEmail).trim().toLowerCase(),
       bookingDate,
       startTime,
       endTime,
@@ -388,8 +405,8 @@ app.put("/studios/:id", async (req, res) => {
         imageUrl: req.body.imageUrl,
         description: req.body.description,
         amenities: req.body.amenities || [],
-        hostName: req.body.hostName,
-        hostEmail: req.body.hostEmail,
+        hostName: req.user?.name || req.body.hostName,
+        hostEmail: req.user?.email || req.body.hostEmail,
         updatedAt: new Date(),
       },
     };
@@ -411,7 +428,7 @@ app.put("/studios/:id", async (req, res) => {
 // Delete Studio
 // ========================================
 
-app.delete("/studios/:id", async (req, res) => {
+app.delete("/studios/:id", verifyJwt, async (req, res) => {
   try {
     const { ObjectId } = await import("mongodb");
     const collection = db.collection("studios");
@@ -419,6 +436,15 @@ app.delete("/studios/:id", async (req, res) => {
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: "Invalid studio ID" });
+    }
+
+    const studio = await collection.findOne({ _id: new ObjectId(id) });
+    if (!studio) {
+      return res.status(404).json({ success: false, message: "Studio not found" });
+    }
+    const owner = (studio.hostEmail || studio.ownerEmail || "").toLowerCase();
+    if (owner && owner !== (req.user?.email || "").toLowerCase()) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
     const result = await collection.deleteOne({ _id: new ObjectId(id) });
