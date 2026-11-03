@@ -435,6 +435,43 @@ app.delete("/studios/:id", async (req, res) => {
 });
 
 // ========================================
+// Cancel Booking
+// ========================================
+
+app.patch("/bookings/:id/cancel", async (req, res) => {
+  try {
+    const { ObjectId } = await import("mongodb");
+    const collection = db.collection("bookings");
+    const { id } = req.params;
+    const email = (req.body?.email || req.query?.email || "").toString().trim().toLowerCase();
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+    }
+
+    const booking = await collection.findOne({ _id: new ObjectId(id) });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (email && booking.customerEmail?.toLowerCase() !== email) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+
+    if (booking.status !== "Pending") {
+      return res.status(400).json({ success: false, message: "Only pending bookings can be cancelled" });
+    }
+
+    await collection.updateOne({ _id: new ObjectId(id) }, { $set: { status: "Cancelled" } });
+
+    res.status(200).json({ success: true, message: "Booking cancelled successfully" });
+  } catch (err) {
+    console.error("Error cancelling booking:", err);
+    res.status(500).json({ success: false, message: "Error cancelling booking" });
+  }
+});
+
+// ========================================
 // Home Route
 // ========================================
 
