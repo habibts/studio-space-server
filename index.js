@@ -8,28 +8,17 @@ import cookieParser from "cookie-parser";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Build the list of allowed origins from environment configuration.
-// Defaults cover both local development and the known production frontend.
-const allowedOrigins = new Set(
-  (
-    process.env.FRONTEND_URL ||
-    "http://localhost:3000,https://studio-space-client-steel.vercel.app"
-  )
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean)
-);
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://studio-space-client-11rizn2to-habibts.vercel.app",
+];
 
 app.use(
   cors({
-    origin(origin, callback) {
-      // Allow same-origin / server-to-server requests (no Origin header)
-      // and any request whose Origin is in the allowed list.
-      callback(null, !origin || allowedOrigins.has(origin));
-    },
+    origin: allowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(express.json());
