@@ -14,7 +14,7 @@ Express API for Studio Space. The app can run locally with Node.js or deploy to 
 2. Add these environment variables in the Vercel project settings for each deployment environment:
    - `MONGODB_URI`: MongoDB connection string. Ensure the database permits connections from your deployment.
    - `JWT_SECRET`: A long, random secret used to verify authentication tokens.
-   - `FRONTEND_URL`: The frontend origin, for example `https://your-frontend.vercel.app` (no trailing slash). To allow multiple origins, separate them with commas.
+   - `FRONTEND_URL`: Additional frontend origins, for example `https://your-frontend.vercel.app` (no trailing slash). The production frontend and `http://localhost:3000` are allowed by default. To allow multiple additional origins, separate them with commas.
 3. Deploy. Vercel detects the root Express app in `index.js`; no custom build command or output directory is required.
 
 Do not commit `.env` or put production secrets in `.env.example`.

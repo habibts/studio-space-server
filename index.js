@@ -6,17 +6,19 @@ import jwt from "jsonwebtoken";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const allowedOrigins = (
-  process.env.FRONTEND_URL || "https://studio-space-client-three.vercel.app"
-)
+const allowedOrigins = new Set([
+  "https://studio-space-client-three.vercel.app",
+  "http://localhost:3000",
+  ...(process.env.FRONTEND_URL || "")
   .split(",")
   .map((origin) => origin.trim())
-  .filter(Boolean);
+  .filter(Boolean),
+]);
 
 app.use(
   cors({
     origin(origin, callback) {
-      callback(null, !origin || allowedOrigins.includes(origin));
+      callback(null, !origin || allowedOrigins.has(origin));
     },
     credentials: true,
   })
