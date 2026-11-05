@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:3000", credentials: true }));
+app.use(cors({ origin: process.env.FRONTEND_URL || "https://studio-space-client-f9uw7ir6j-habibts.vercel.app", credentials: true }));
 app.use(express.json());
 
 const client = new MongoClient(process.env.MONGODB_URI);
