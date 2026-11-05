@@ -3,27 +3,37 @@ import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
 import cors from "cors";
 import jwt from "jsonwebtoken";
+import cookieParser from "cookie-parser";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const allowedOrigins = new Set([
-  "https://studio-space-client-three.vercel.app",
-  "http://localhost:3000",
-  ...(process.env.FRONTEND_URL || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean),
-]);
+
+// Build the list of allowed origins from environment configuration.
+// Defaults cover both local development and the known production frontend.
+const allowedOrigins = new Set(
+  (
+    process.env.FRONTEND_URL ||
+    "http://localhost:3000,https://studio-space-client-steel.vercel.app"
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
 
 app.use(
   cors({
     origin(origin, callback) {
+      // Allow same-origin / server-to-server requests (no Origin header)
+      // and any request whose Origin is in the allowed list.
       callback(null, !origin || allowedOrigins.has(origin));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   })
 );
 app.use(express.json());
+app.use(cookieParser());
 
 const client = new MongoClient(process.env.MONGODB_URI);
 
@@ -42,7 +52,7 @@ const mongoClient = await connectToMongoDB();
 const db = mongoClient.db("studiospace");
 
 // ========================================
-// Add New Studio
+// JWT Verification Middleware
 // ========================================
 
 function verifyJwt(req, res, next) {
@@ -56,10 +66,6 @@ function verifyJwt(req, res, next) {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 }
-
-// cookie parser
-import cookieParser from "cookie-parser";
-app.use(cookieParser());
 
 app.post("/add-studio", verifyJwt, async (req, res) => {
   console.log("Received data:", req.body);
