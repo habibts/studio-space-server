@@ -234,6 +234,26 @@ app.post("/bookings", verifyJwt, async (req, res) => {
 
     const bookingsCollection = db.collection("bookings");
 
+    const { ObjectId } = await import("mongodb");
+    const studioIdQuery = ObjectId.isValid(studioId)
+      ? { $in: [studioId, new ObjectId(studioId)] }
+      : studioId;
+
+    const overlapping = await bookingsCollection.findOne({
+      studioId: studioIdQuery,
+      bookingDate,
+      status: "Confirmed",
+      startTime: { $lt: endTime },
+      endTime: { $gt: startTime },
+    });
+
+    if (overlapping) {
+      return res.status(409).json({
+        success: false,
+        message: "This studio is already booked for the selected time. Please choose another time slot.",
+      });
+    }
+
     const result = await bookingsCollection.insertOne(newBooking);
 
     res.status(201).json({
@@ -494,6 +514,45 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
   } catch (err) {
     console.error("Error cancelling booking:", err);
     res.status(500).json({ success: false, message: "Error cancelling booking" });
+  }
+});
+
+// ========================================
+// Delete Cancelled Booking
+// ========================================
+
+app.delete("/bookings/:id", verifyJwt, async (req, res) => {
+  try {
+    const { ObjectId } = await import("mongodb");
+    const collection = db.collection("bookings");
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+    }
+
+    const booking = await collection.findOne({ _id: new ObjectId(id) });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.customerEmail?.toLowerCase() !== req.user.email?.toLowerCase()) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+
+    if (booking.status !== "Cancelled") {
+      return res.status(400).json({ success: false, message: "Only cancelled bookings can be deleted" });
+    }
+
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 0) {
+      return res.status(500).json({ success: false, message: "Deletion failed" });
+    }
+
+    res.status(200).json({ success: true, message: "Booking deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting booking:", err);
+    res.status(500).json({ success: false, message: "Error deleting booking" });
   }
 });
 
