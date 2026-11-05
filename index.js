@@ -536,6 +536,7 @@ app.delete("/bookings/:id", verifyJwt, async (req, res) => {
       return res.status(404).json({ success: false, message: "Booking not found" });
     }
 
+    console.log("Delete debug:", { hasUser: !!req.user, userEmail: req.user?.email, bookingEmail: booking.customerEmail, id });
     if (booking.customerEmail?.toLowerCase() !== req.user.email?.toLowerCase()) {
       return res.status(403).json({ success: false, message: "Not authorized" });
     }
@@ -553,6 +554,101 @@ app.delete("/bookings/:id", verifyJwt, async (req, res) => {
   } catch (err) {
     console.error("Error deleting booking:", err);
     res.status(500).json({ success: false, message: "Error deleting booking" });
+  }
+});
+
+// ========================================
+// Confirm Booking
+// ========================================
+
+app.patch("/bookings/:id/confirm", verifyJwt, async (req, res) => {
+  try {
+    const { ObjectId } = await import("mongodb");
+    const collection = db.collection("bookings");
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+    }
+
+    const booking = await collection.findOne({ _id: new ObjectId(id) });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    console.log("Confirm debug:", { hasUser: !!req.user, userEmail: req.user?.email, bookingEmail: booking.customerEmail });
+    if (booking.customerEmail?.toLowerCase() !== req.user.email?.toLowerCase()) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+
+    if (booking.status !== "Pending") {
+      return res.status(400).json({ success: false, message: "Only pending bookings can be confirmed" });
+    }
+
+    const overlapping = await collection.findOne({
+      studioId: booking.studioId,
+      bookingDate: booking.bookingDate,
+      status: "Confirmed",
+      startTime: { $lt: booking.endTime },
+      endTime: { $gt: booking.startTime },
+      _id: { $ne: new ObjectId(id) },
+    });
+
+    if (overlapping) {
+      return res.status(409).json({ success: false, message: "This studio is already booked for the selected time. Please choose another time slot." });
+    }
+
+    await collection.updateOne({ _id: new ObjectId(id) }, { $set: { status: "Confirmed" } });
+    await collection.updateMany(
+      {
+        studioId: booking.studioId,
+        bookingDate: booking.bookingDate,
+        status: "Pending",
+        _id: { $ne: new ObjectId(id) },
+        startTime: { $lt: booking.endTime },
+        endTime: { $gt: booking.startTime },
+      },
+      { $set: { status: "Cancelled" } }
+    );
+    res.status(200).json({ success: true, message: "Booking confirmed successfully" });
+  } catch (err) {
+    console.error("Error confirming booking:", err);
+    res.status(500).json({ success: false, message: "Error confirming booking" });
+  }
+});
+
+// ========================================
+// Complete Booking
+// ========================================
+
+app.patch("/bookings/:id/complete", verifyJwt, async (req, res) => {
+  try {
+    const { ObjectId } = await import("mongodb");
+    const collection = db.collection("bookings");
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+    }
+
+    const booking = await collection.findOne({ _id: new ObjectId(id) });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.customerEmail?.toLowerCase() !== req.user.email?.toLowerCase()) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+
+    if (booking.status !== "Confirmed") {
+      return res.status(400).json({ success: false, message: "Only confirmed bookings can be completed" });
+    }
+
+    await collection.updateOne({ _id: new ObjectId(id) }, { $set: { status: "Completed" } });
+    res.status(200).json({ success: true, message: "Booking completed successfully" });
+  } catch (err) {
+    console.error("Error completing booking:", err);
+    res.status(500).json({ success: false, message: "Error completing booking" });
   }
 });
 
