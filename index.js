@@ -46,12 +46,16 @@ const db = mongoClient.db("studiospace");
 
 function verifyJwt(req, res, next) {
   const token = req.cookies?.studio_jwt;
-  if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
+  if (!token) {
+    console.error("verifyJwt: missing studio_jwt cookie");
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
   } catch (err) {
+    console.error("verifyJwt failed:", err?.name || "unknown");
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 }
