@@ -555,8 +555,8 @@ app.delete("/bookings/:id", verifyJwt, async (req, res) => {
       return res.status(403).json({ success: false, message: "Not authorized" });
     }
 
-    if (booking.status !== "Cancelled") {
-      return res.status(400).json({ success: false, message: "Only cancelled bookings can be deleted" });
+    if (booking.status !== "Cancelled" && booking.status !== "Completed") {
+      return res.status(400).json({ success: false, message: "Only cancelled or completed bookings can be deleted" });
     }
 
     const result = await collection.deleteOne({ _id: new ObjectId(id) });
