@@ -1,0 +1,11 @@
+import "dotenv/config";
+import { MongoClient } from "mongodb";
+const client = new MongoClient(process.env.MONGODB_URI);
+await client.connect();
+const db = client.db("studiospace");
+const col = db.collection("bookings");
+const indexes = await col.listIndexes().toArray();
+console.log("BOOKING INDEXES:", JSON.stringify(indexes, null, 2));
+const sIdx = await db.collection("studios").listIndexes().toArray();
+console.log("STUDIO INDEXES:", JSON.stringify(sIdx, null, 2));
+await client.close();

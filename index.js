@@ -253,27 +253,37 @@ app.post("/bookings", verifyJwt, async (req, res) => {
       ? { $in: [studioId, new ObjectId(studioId)] }
       : studioId;
 
-    const overlapping = await bookingsCollection.findOne({
-      studioId: studioIdQuery,
-      bookingDate,
-      status: { $in: ["Pending", "Confirmed"] },
-      startTime: { $lt: endTime },
-      endTime: { $gt: startTime },
-    });
+    // Atomic check-and-insert. The overlap check and the insert are performed
+    // in a single findOneAndUpdate with upsert, so concurrent booking requests
+    // cannot both reserve the same overlapping slot. Only bookings whose status
+    // is Pending or Confirmed block overlapping bookings; Cancelled and
+    // Completed bookings are excluded from the overlap query and therefore
+    // release their time slot for new bookings.
+    const result = await bookingsCollection.findOneAndUpdate(
+      {
+        studioId: studioIdQuery,
+        bookingDate,
+        status: { $in: ["Pending", "Confirmed"] },
+        startTime: { $lt: endTime },
+        endTime: { $gt: startTime },
+      },
+      { $setOnInsert: newBooking },
+      { upsert: true, returnDocument: "after", includeResultMetadata: true }
+    );
 
-    if (overlapping) {
+    // updatedExisting === true means an overlapping Pending/Confirmed booking
+    // already existed, so the new booking was NOT inserted.
+    if (result.lastErrorObject.updatedExisting) {
       return res.status(409).json({
         success: false,
-        message: "This studio is already booked for the selected time. Please choose another time slot.",
+        message: "This time slot is already booked. Please choose another time.",
       });
     }
-
-    const result = await bookingsCollection.insertOne(newBooking);
 
     res.status(201).json({
       success: true,
       message: "Booking created successfully!",
-      bookingId: result.insertedId,
+      bookingId: result.value?._id,
     });
   } catch (error) {
     console.error("Error creating booking:", error);
