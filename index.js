@@ -256,7 +256,7 @@ app.post("/bookings", verifyJwt, async (req, res) => {
     const overlapping = await bookingsCollection.findOne({
       studioId: studioIdQuery,
       bookingDate,
-      status: "Confirmed",
+      status: { $in: ["Pending", "Confirmed"] },
       startTime: { $lt: endTime },
       endTime: { $gt: startTime },
     });
@@ -602,7 +602,7 @@ app.patch("/bookings/:id/confirm", verifyJwt, async (req, res) => {
     const overlapping = await collection.findOne({
       studioId: booking.studioId,
       bookingDate: booking.bookingDate,
-      status: "Confirmed",
+      status: { $in: ["Pending", "Confirmed"] },
       startTime: { $lt: booking.endTime },
       endTime: { $gt: booking.startTime },
       _id: { $ne: new ObjectId(id) },
@@ -613,17 +613,6 @@ app.patch("/bookings/:id/confirm", verifyJwt, async (req, res) => {
     }
 
     await collection.updateOne({ _id: new ObjectId(id) }, { $set: { status: "Confirmed" } });
-    await collection.updateMany(
-      {
-        studioId: booking.studioId,
-        bookingDate: booking.bookingDate,
-        status: "Pending",
-        _id: { $ne: new ObjectId(id) },
-        startTime: { $lt: booking.endTime },
-        endTime: { $gt: booking.startTime },
-      },
-      { $set: { status: "Cancelled" } }
-    );
     res.status(200).json({ success: true, message: "Booking confirmed successfully" });
   } catch (err) {
     console.error("Error confirming booking:", err);
