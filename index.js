@@ -253,20 +253,22 @@ app.post("/bookings", verifyJwt, async (req, res) => {
       ? { $in: [studioId, new ObjectId(studioId)] }
       : studioId;
 
-    // Atomic check-and-insert. The overlap check and the insert are performed
-    // in a single findOneAndUpdate with upsert, so concurrent booking requests
-    // cannot both reserve the same overlapping slot. Only bookings whose status
-    // is Pending or Confirmed block overlapping bookings; Cancelled and
-    // Completed bookings are excluded from the overlap query and therefore
-    // release their time slot for new bookings.
+    // Check-and-insert. The overlap filter matches only bookings that block the
+    // slot: same studioId, same bookingDate, status Pending or Confirmed, and
+    // existing.startTime < new.endTime && existing.endTime > new.startTime.
+    // Cancelled and Completed bookings never match, so cancelling or completing
+    // a booking releases its time slot. studioId may be stored as either a
+    // string or an ObjectId, so both representations are matched.
+    const conflictFilter = {
+      studioId: studioIdQuery,
+      bookingDate,
+      status: { $in: ["Pending", "Confirmed"] },
+      startTime: { $lt: endTime },
+      endTime: { $gt: startTime },
+    };
+
     const result = await bookingsCollection.findOneAndUpdate(
-      {
-        studioId: studioIdQuery,
-        bookingDate,
-        status: { $in: ["Pending", "Confirmed"] },
-        startTime: { $lt: endTime },
-        endTime: { $gt: startTime },
-      },
+      conflictFilter,
       { $setOnInsert: newBooking },
       { upsert: true, returnDocument: "after", includeResultMetadata: true }
     );
@@ -278,6 +280,30 @@ app.post("/bookings", verifyJwt, async (req, res) => {
         success: false,
         message: "This time slot is already booked. Please choose another time.",
       });
+    }
+
+    // The upsert above is not protected by a unique index (its filter uses range
+    // operators), so two simultaneous requests can both reach the insert path.
+    // Re-check for an overlapping booking that committed while we were
+    // inserting; if one exists, withdraw our own insert so the slot can never be
+    // reserved twice. Because both racers re-check after inserting, at least one
+    // of them withdraws, so both requests can never succeed.
+    const insertedId = result.value?._id ?? result.lastErrorObject?.upserted?._id;
+    if (insertedId) {
+      const overlapping = await bookingsCollection.findOne({
+        ...conflictFilter,
+        _id: { $ne: insertedId },
+      });
+
+      if (overlapping) {
+        // Only our own, still-Pending insert is removed; no existing booking
+        // record is modified or deleted.
+        await bookingsCollection.deleteOne({ _id: insertedId, status: "Pending" });
+        return res.status(409).json({
+          success: false,
+          message: "This time slot is already booked. Please choose another time.",
+        });
+      }
     }
 
     res.status(201).json({
@@ -609,8 +635,13 @@ app.patch("/bookings/:id/confirm", verifyJwt, async (req, res) => {
       return res.status(400).json({ success: false, message: "Only pending bookings can be confirmed" });
     }
 
+    // Same overlap rule as booking creation: another Pending/Confirmed booking
+    // for the same studio and date with overlapping times blocks confirmation.
+    // studioId may be a string or an ObjectId, so match either representation.
     const overlapping = await collection.findOne({
-      studioId: booking.studioId,
+      studioId: ObjectId.isValid(booking.studioId)
+        ? { $in: [booking.studioId, new ObjectId(booking.studioId)] }
+        : booking.studioId,
       bookingDate: booking.bookingDate,
       status: { $in: ["Pending", "Confirmed"] },
       startTime: { $lt: booking.endTime },
