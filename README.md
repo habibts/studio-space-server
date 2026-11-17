@@ -1,20 +1,38 @@
-# Studio Space Server
+# StudioSpace Server
 
-Express API for Studio Space. The app can run locally with Node.js or deploy to Vercel as an Express function.
+Backend API for StudioSpace, a Peer-to-Peer Creative Workspace & Production Studio Sharing Platform.
 
-## Run locally
+StudioSpace connects creative professionals with studio owners, allowing users to discover, list, and book professional creative spaces.
 
-1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env` and set `MONGODB_URI`, `JWT_SECRET`, and `FRONTEND_URL`.
-3. Start the server with `npm start`. It listens on port `3001` by default; set `PORT` to override it.
+## 🔗 Project Links
 
-## Deploy to Vercel
+- Live Website: https://studio-space-client-steel.vercel.app/
+- Client Repository: https://github.com/habibts/studio-space-client
+- Server Repository: https://github.com/habibts/studio-space-server
 
-1. Import this repository into Vercel and set the project root to `studio-space-server` if deploying from the repository's parent directory.
-2. Add these environment variables in the Vercel project settings for each deployment environment:
-   - `MONGODB_URI`: MongoDB connection string. Ensure the database permits connections from your deployment.
-   - `JWT_SECRET`: A long, random secret used to verify authentication tokens.
-   - `FRONTEND_URL`: Additional frontend origins, for example `https://your-frontend.vercel.app` (no trailing slash). The production frontend and `http://localhost:3000` are allowed by default. To allow multiple additional origins, separate them with commas.
-3. Deploy. Vercel detects the root Express app in `index.js`; no custom build command or output directory is required.
+## ✨ Backend Features
 
-Do not commit `.env` or put production secrets in `.env.example`.
+- RESTful API built with Express.js.
+- MongoDB database integration.
+- JWT-based authentication using HTTPOnly cookies.
+- Protected API routes using JWT verification middleware.
+- Create, read, update, and delete studio listings.
+- Retrieve featured studios.
+- Studio details API.
+- Booking creation and management.
+- Booking status management (Pending, Confirmed, Completed, Cancelled).
+- Booking overlap prevention.
+- User-specific booking access.
+- Studio ownership verification.
+- CORS configuration for frontend integration.
+
+## 🛠️ Technology Stack
+
+- Node.js
+- Express.js
+- MongoDB
+- MongoDB Native Driver
+- JSON Web Token (JWT)
+- Cookie Parser
+- CORS
+- dotenv
